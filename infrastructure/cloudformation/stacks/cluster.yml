@@ -10,8 +10,6 @@ Parameters:
     Type: List<AWS::EC2::Subnet::Id>
   DatabaseUrl:
     Type: String
-  RailsSecretKeyBase:
-    Type: String
   DockerImage:
     Type: String
 Resources:
@@ -108,7 +106,7 @@ Resources:
         - Name: DATABASE_URL
           Value: !Ref DatabaseUrl
         - Name: SECRET_KEY_BASE
-          Value: !Ref RailsSecretKeyBase
+          Value: 7db791ebc31366f3fccd67467ed6128f20175ff947c1fe262beb8f28d9466700fda9dbd278cfe7a63d6ace11d282d125a7bfd2d5b813f19d6f23fd46a8d7cdae
         Essential: true
         Image: !Ref DockerImage
         PortMappings:
