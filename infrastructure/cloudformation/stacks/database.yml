@@ -16,7 +16,7 @@ Resources:
       MultiAZ: true
       PubliclyAccessible: true
 Outputs:
-  DBURL:
+  DatabaseUrl:
     Description: A database connection string
     Value:
       Fn::Join:
