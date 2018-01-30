@@ -17,6 +17,12 @@
 ### Generate a Rails App
 
 ```
+rvm use ruby-2.5.0@global --create \
+  && gem install bundler \
+  && gem install rails -v "5.1.2"
+```
+
+```
 rails new websvc -d postgresql --skip-puma --skip-spring \
   && cd websvc \
   && bundle \
@@ -56,7 +62,7 @@ docker build . -t demo:latest
 ### Run Tests
 
 ```
-docker run --rm demo "rake test"
+docker run --rm demo "rails test"
 ```
 
 ### Replace Database Configuration YAML
