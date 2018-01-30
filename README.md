@@ -56,7 +56,7 @@ docker build . -t demo
 ### Run Tests
 
 ```
-docker run --rm demo "rails test"
+docker run --rm demo "rake test"
 ```
 
 ### Replace Database Configuration YAML
