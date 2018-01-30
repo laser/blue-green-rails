@@ -185,6 +185,8 @@ aws configure set default.region us-east-1
 Using CloudFormation, we'll create an ECR repository to which we'll push our Docker images:
 
 ```
+cat <<EOF > ./infrastructure/cloudformation/stacks/image-repository.yml
+
 Resources:
   Repository:
     Type: AWS::ECR::Repository
@@ -193,12 +195,14 @@ Outputs:
     Value: !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${Repository}
   RepositoryUri:
     Value: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${Repository}
+    
+EOF
 ```
 
 ```
 aws cloudformation deploy \
   --stack-name demorepo \
-  --template-file ./infrastructure/cloudformation/stacks/image-repository.yml \
+  --template-file ./infrastructure/cloudformation/stacks/image-repository.yml
 ```
 
 Once the CloudFormation stack containing our ECR repository has been created, we obtain its URI:
@@ -234,6 +238,8 @@ docker push ${REPOSITORY_URI}:latest
 Create a database (15m15.288s):
 
 ```
+cat <<EOF > ./infrastructure/cloudformation/stacks/database.yml
+
 Description: >
   This stack provisions the RDS instance which will be used by our app.
 Resources:
@@ -264,6 +270,8 @@ Outputs:
         - !GetAtt Database.Endpoint.Port
         - "/"
         - !Ref AWS::StackName
+
+EOF
 ```
 
 ```
@@ -295,6 +303,8 @@ export PUBLIC_SUBNETS=$(aws ec2 describe-subnets   --filters Name=vpc-id,Values=
 Create the cluster (5m26.842s):
 
 ```
+cat <<EOF > ./infrastructure/cloudformation/stacks/cluster.yml
+
 Description: >
   This template deploys a network load balancer that exposes our ECS service to
   the internet
@@ -437,6 +447,8 @@ Outputs:
   LoadBalancerUrl:
     Description: The URL of the NLB
     Value: !GetAtt LoadBalancer.DNSName
+    
+EOF
 ```
 
 ```
