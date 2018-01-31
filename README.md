@@ -23,46 +23,56 @@ rvm use ruby-2.5.0@global --create \
 ```
 
 ```
-rails new websvc -d postgresql --skip-puma --skip-spring \
+rvm use ruby-2.5.0@global --create \
+  && gem install --no-rdoc --no-ri bundler \
+  && gem install --no-rdoc --no-ri rails -v "5.1.2"
+```
+
+```
+rails new websvc -d postgresql --skip-yarn --skip-spring \
   && cd websvc \
   && bundle \
   && rails generate scaffold Post title:string content:text
 ```
-      
-### Create a Dockerfile
+
+### Create a Dockerfile and .dockerignore
+
+First, a `Dockerfile`:
 
 ```
 cat <<EOF > ./Dockerfile
 
 FROM ruby:2.5.0-alpine
 
-RUN apk add --update postgresql-dev alpine-sdk nodejs tzdata
+RUN apk add --update \
+  alpine-sdk \
+  nodejs \
+  postgresql-dev \
+  tzdata
 
 COPY Gemfile* /opt/bundle/
 WORKDIR /opt/bundle
-
 RUN bundle update && bundle install
 
 COPY . /opt/app
-
 WORKDIR /opt/app
+
 ENTRYPOINT ["/bin/ash", "-c"]
 
 EOF
 ```
 
-### Build the Docker Image
-
-An image is an ordered collection of root filesystem changes and the corresponding execution parameters for use within a container runtime. An image typically contains a union of layered filesystems stacked on top of each other. An image does not have state and it never changes.
+Also, a`.dockerignore`:
 
 ```
-docker build . -t demo:latest
-```
+cat <<EOF > ./.dockerignore
 
-### Run Tests
+tmp/*
+log/*
+db/*.sqlite3
+.git
 
-```
-docker run --rm demo "rails test"
+EOF
 ```
 
 ### Replace Database Configuration YAML
@@ -89,95 +99,32 @@ production:
 EOF
 ```
 
-### Add a Database (Docker Compose)
+### Build the Docker Image
+
+An image is an ordered collection of root filesystem changes and the corresponding execution parameters for use within a container runtime. An image typically contains a union of layered filesystems stacked on top of each other. An image does not have state and it never changes.
 
 ```
-cat <<EOF > docker-compose.yml
-
-version: "2"
-services:
-  websvc:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    ports:
-      - "3333:3000"
-    environment:
-      - DATABASE_URL=postgresql://postgres@websvcdb:5432/postgres
-      - PORT=3000
-    depends_on:
-      - dockerize
-    command:
-        - "rails db:migrate && rails server -b 0.0.0.0"
-    volumes:
-      - .:/opt/app
-  websvcdb:
-    image: postgres:9.6.5-alpine
-  dockerize:
-    image: jwilder/dockerize
-    command: ["dockerize", "-wait", "tcp://websvcdb:5432", "-timeout", "50s"]
-    depends_on:
-      - websvcdb
-      
-EOF
-```
-
-### Service Dependencies
-
-> It is common when using tools like Docker Compose to depend on services in other linked containers, however oftentimes relying on links is not enough - whilst the container itself may have started, the service(s) within it may not yet be ready - resulting in shell script hacks to work around race conditions.
-
-> Dockerize gives you the ability to wait for services on a specified protocol (file, tcp, tcp4, tcp6, http, https and unix) before starting your application:
-
-```
-dockerize -wait tcp://databasehost:5432 echo "database ready"
-```
-
-### Run the Tests (again)
-
-First, generate `schema.rb`:
-
-```
-docker-compose run --rm websvc "rails db:migrate"
-```
-
-Then, run tests:
-
-```
-docker-compose run --rm websvc "rails db:test:prepare && rails test"
-```
-
-### Launch the App (locally)
-
-```
-docker-compose up
-```
-
-```
-open 'http://localhost:3333/posts'
+docker build . -t demo:latest
 ```
 
 ## Pushing Docker Image to ECR
 
-### Create ECR (via UI)
-
-(click through UI to demonstrate how to create an ECR repository)
-
 ### Why CloudFormation?
 
 > Why use AWS CloudFormation with Amazon ECS?
-> 
+>
 > Using CloudFormation to deploy and manage services with ECS has a number of nice benefits over more traditional methods (AWS CLI, scripting, etc.).
-> 
+>
 > Infrastructure-as-Code
-> 
+>
 > A template can be used repeatedly to create identical copies of the same stack (or to use as a foundation to start a new stack). Templates are simple YAML- or JSON-formatted text files that can be placed under your normal source control mechanisms, stored in private or public locations such as Amazon S3, and exchanged via email. With CloudFormation, you can see exactly which AWS resources make up a stack. You retain full control and have the ability to modify any of the AWS resources created as part of a stack.
 Self-documenting
-> 
+>
 > Fed up with outdated documentation on your infrastructure or environments? Still keep manual documentation of IP ranges, security group rules, etc.?
-> 
+>
 > With CloudFormation, your template becomes your documentation. Want to see exactly what you have deployed? Just look at your template. If you keep it in source control, then you can also look back at exactly which changes were made and by whom.
 Intelligent updating & rollback
-> 
+>
 > CloudFormation not only handles the initial deployment of your infrastructure and environments, but it can also manage the whole lifecycle, including future updates. During updates, you have fine-grained control and visibility over how changes are applied, using functionality such as change sets, rolling update policies and stack policies.
 
 ### Configure AWS Client
@@ -190,8 +137,8 @@ aws configure set default.region us-east-1
 
 Using CloudFormation, we'll create an ECR repository to which we'll push our Docker images:
 
-```
-cat <<EOF > ./infrastructure/cloudformation/stacks/image-repository.yml
+```yaml
+# image-repository.yml
 
 Resources:
   Repository:
@@ -208,13 +155,15 @@ EOF
 ```
 aws cloudformation deploy \
   --stack-name demorepo \
-  --template-file ./infrastructure/cloudformation/stacks/image-repository.yml
+  --template-file ./image-repository.yml
 ```
 
 Once the CloudFormation stack containing our ECR repository has been created, we obtain its URI:
 
 ```
-export REPOSITORY_URI=$(aws cloudformation describe-stacks --stack-name demorepo | jq -r '(.Stacks[0].Outputs[] | select(.OutputKey == "RepositoryUri")).OutputValue')
+export REPOSITORY_URI=$(aws cloudformation describe-stacks \
+  --stack-name demorepo \
+  | jq -r '(.Stacks[0].Outputs[] | select(.OutputKey == "RepositoryUri")).OutputValue')
 ```
 
 ### Log in to an Amazon ECR Registry
@@ -243,8 +192,8 @@ docker push ${REPOSITORY_URI}:latest
 
 Create a database (15m15.288s):
 
-```
-cat <<EOF > ./infrastructure/cloudformation/stacks/database.yml
+```yaml
+# database.yml
 
 Description: >
   This stack provisions the RDS instance which will be used by our app.
@@ -290,7 +239,7 @@ After that's created, get the database URL from the stack output:
 
 ```
 DATABASE_URL=$(aws cloudformation describe-stacks \
-  --stack-name demodb 
+  --stack-name demodb
   | jq -r '(.Stacks[0].Outputs[] | select(.OutputKey == "DatabaseUrl")).OutputValue')
 ```
 
@@ -303,13 +252,15 @@ export VPC_ID=$(aws ec2 describe-vpcs --filters "Name=isDefault,Values=true" | j
 Get the subnets for this VPC:
 
 ```
-export PUBLIC_SUBNETS=$(aws ec2 describe-subnets   --filters Name=vpc-id,Values=${VPC_ID}   | jq -r '[([.Subnets[].SubnetId])[0, 2]] | join(",")')
+export PUBLIC_SUBNETS=$(aws ec2 describe-subnets \
+  --filters Name=vpc-id,Values=${VPC_ID} \
+  | jq -r '[([.Subnets[].SubnetId])[0, 2]] | join(",")')
 ```
 
 Create the cluster (5m26.842s):
 
 ```
-cat <<EOF > ./infrastructure/cloudformation/stacks/cluster.yml
+# cluster.yml
 
 Description: >
   This template deploys a network load balancer that exposes our ECS service to
@@ -487,7 +438,7 @@ open ${POSTS_URL}
 
 ## Zero-downtime Deploys
 
-### Visualizing a 
+### Visualizing a
 
 ### Fiddling with ECS Settings
 
