@@ -16,19 +16,13 @@
 
 ### Generate a Rails App
 
-```
-rvm use ruby-2.5.0@global --create \
-  && gem install bundler \
-  && gem install rails -v "5.1.2"
-```
-
-```
+```Shell
 rvm use ruby-2.5.0@global --create \
   && gem install --no-rdoc --no-ri bundler \
   && gem install --no-rdoc --no-ri rails -v "5.1.2"
 ```
 
-```
+```Shell
 rails new websvc -d postgresql --skip-yarn --skip-spring \
   && cd websvc \
   && bundle \
@@ -39,8 +33,8 @@ rails new websvc -d postgresql --skip-yarn --skip-spring \
 
 First, a `Dockerfile`:
 
-```
-cat <<EOF > ./Dockerfile
+```Dockerfile
+# ./Dockerfile
 
 FROM ruby:2.5.0-alpine
 
@@ -58,27 +52,23 @@ COPY . /opt/app
 WORKDIR /opt/app
 
 ENTRYPOINT ["/bin/ash", "-c"]
-
-EOF
 ```
 
-Also, a`.dockerignore`:
+Also, a `.dockerignore`:
 
 ```
-cat <<EOF > ./.dockerignore
+# ./.dockerignore
 
 tmp/*
 log/*
 db/*.sqlite3
 .git
-
-EOF
 ```
 
 ### Replace Database Configuration YAML
 
-```
-cat <<EOF > ./config/database.yml
+```YAML
+# ./config/database.yml
 
 default: &default
   adapter: postgresql
@@ -95,15 +85,13 @@ test:
 production:
   <<: *default
   url: <%= ENV['DATABASE_URL'] %>
-
-EOF
 ```
 
 ### Build the Docker Image
 
 An image is an ordered collection of root filesystem changes and the corresponding execution parameters for use within a container runtime. An image typically contains a union of layered filesystems stacked on top of each other. An image does not have state and it never changes.
 
-```
+```Shell
 docker build . -t demo:latest
 ```
 
@@ -129,7 +117,7 @@ Intelligent updating & rollback
 
 ### Configure AWS Client
 
-```
+```Shell
 aws configure set default.region us-east-1
 ```
 
@@ -137,7 +125,7 @@ aws configure set default.region us-east-1
 
 Using CloudFormation, we'll create an ECR repository to which we'll push our Docker images:
 
-```yaml
+```YAML
 # image-repository.yml
 
 Resources:
@@ -148,11 +136,9 @@ Outputs:
     Value: !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${Repository}
   RepositoryUri:
     Value: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${Repository}
-    
-EOF
 ```
 
-```
+```Shell
 aws cloudformation deploy \
   --stack-name demorepo \
   --template-file ./image-repository.yml
@@ -160,7 +146,7 @@ aws cloudformation deploy \
 
 Once the CloudFormation stack containing our ECR repository has been created, we obtain its URI:
 
-```
+```Shell
 export REPOSITORY_URI=$(aws cloudformation describe-stacks \
   --stack-name demorepo \
   | jq -r '(.Stacks[0].Outputs[] | select(.OutputKey == "RepositoryUri")).OutputValue')
@@ -170,7 +156,7 @@ export REPOSITORY_URI=$(aws cloudformation describe-stacks \
 
 This command retrieves a token that is valid for a specified registry for 12 hours, and then it prints a docker login command with that authorization token. You can execute the printed command to log in to your registry with Docker. After you have logged in to an Amazon ECR registry with this command, you can use the Docker CLI to push and pull images from that registry until the token expires.
 
-```
+```Shell
 eval $(aws ecr get-login --no-include-email)
 ```
 
@@ -178,13 +164,13 @@ eval $(aws ecr get-login --no-include-email)
 
 Tag the previously-built image:
 
-```
+```Shell
 docker tag demo:latest ${REPOSITORY_URI}:latest
 ```
 
 Push the image to the ECR:
 
-```
+```Shell
 docker push ${REPOSITORY_URI}:latest
 ```
 
@@ -192,7 +178,7 @@ docker push ${REPOSITORY_URI}:latest
 
 Create a database (15m15.288s):
 
-```yaml
+```YAML
 # database.yml
 
 Description: >
@@ -225,11 +211,9 @@ Outputs:
         - !GetAtt Database.Endpoint.Port
         - "/"
         - !Ref AWS::StackName
-
-EOF
 ```
 
-```
+```Shell
 aws cloudformation deploy \
   --stack-name demodb \
   --template-file ./infrastructure/cloudformation/stacks/database.yml
@@ -237,7 +221,7 @@ aws cloudformation deploy \
 
 After that's created, get the database URL from the stack output:
 
-```
+```Shell
 DATABASE_URL=$(aws cloudformation describe-stacks \
   --stack-name demodb
   | jq -r '(.Stacks[0].Outputs[] | select(.OutputKey == "DatabaseUrl")).OutputValue')
@@ -245,13 +229,13 @@ DATABASE_URL=$(aws cloudformation describe-stacks \
 
 Get the default VPC id:
 
-```
+```Shell
 export VPC_ID=$(aws ec2 describe-vpcs --filters "Name=isDefault,Values=true" | jq -r '.Vpcs[].VpcId')
 ```
 
 Get the subnets for this VPC:
 
-```
+```Shell
 export PUBLIC_SUBNETS=$(aws ec2 describe-subnets \
   --filters Name=vpc-id,Values=${VPC_ID} \
   | jq -r '[([.Subnets[].SubnetId])[0, 2]] | join(",")')
@@ -259,7 +243,7 @@ export PUBLIC_SUBNETS=$(aws ec2 describe-subnets \
 
 Create the cluster (5m26.842s):
 
-```
+```YAML
 # cluster.yml
 
 Description: >
@@ -404,11 +388,9 @@ Outputs:
   LoadBalancerUrl:
     Description: The URL of the NLB
     Value: !GetAtt LoadBalancer.DNSName
-    
-EOF
 ```
 
-```
+```Shell
 aws cloudformation deploy \
   --capabilities CAPABILITY_IAM \
   --stack-name democluster \
@@ -422,7 +404,7 @@ aws cloudformation deploy \
 
 Use stack outputs to get URL of the posts index:
 
-```
+```Shell
 NLB_DNS_NAME=$($(aws cloudformation describe-stacks \
   --stack-name wittysubfreshman \
   | jq -r '(.Stacks[0].Outputs[] | select(.OutputKey == "LoadBalancerUrl")).OutputValue'))
@@ -432,7 +414,7 @@ POSTS_URL=http://${NLB_DNS_NAME}/posts
 
 Then, open the app and create a post:
 
-```
+```Shell
 open ${POSTS_URL}
 ```
 
@@ -444,7 +426,7 @@ open ${POSTS_URL}
 
 Our deployment strategy is determined from `DesiredCount`, `MaximumPercent`, and `MinimumHealthyPercent`:
 
-```
+```YAML
 Service:
   Type: AWS::ECS::Service
   Properties:
@@ -456,7 +438,7 @@ Service:
 
 During a deploy, we will burst up to a maximum number of running tasks `N`, where:
 
-```
+```Shell
 N = DesiredCount + FLOOR (MaximumPercent / 100 * DesiredCount)
 ```
 
@@ -466,19 +448,19 @@ As long as `MinimumHealthyPercent * DesiredCount` is greater than 1, we'll do a 
 
 Make requests to the Rails application in a loop:
 
-```
+```Shell
 while true; do echo $(date)-$(curl -s ${POSTS_URL} | grep h1); sleep 1; done
 ```
 
 Change the title of the posts index, stage, and commit it:
 
-```
+```Shell
 sed -i -e "s;<h1>.*<\/h1>;<h1>Posts $(word)<\/h1>;g" websvc/app/views/posts/index.html.erb
 ```
 
 Build a new Docker image, tag it, and push it (0m37.228s):
 
-```
+```Shell
 docker build websvc/ -t demo:latest \
   && export REPOSITORY_URI=$(aws cloudformation describe-stacks --stack-name demorepo | jq -r '(.Stacks[0].Outputs[] | select(.OutputKey == "RepositoryUri")).OutputValue') \
   && docker tag demo:latest ${REPOSITORY_URI}:latest \
@@ -488,7 +470,7 @@ docker build websvc/ -t demo:latest \
 
 Then, update the service (~3 minutes for new task to run, 15 for full update):
 
-```
+```Shell
 aws ecs update-service \
   --service democluster-service \
   --cluster democluster-cluster \
@@ -503,7 +485,7 @@ We need to ensure that migrations are run only once per deploy.
 
 ### Approach 1: Slow Rollout
 
-```
+```YAML
 Service:
   Type: AWS::ECS::Service
   Properties:
@@ -515,7 +497,7 @@ Service:
 
 ### Approach 2: ECS RunTask API
 
-```
+```Shell
 export MIGRATION_TASK_ARN=$(aws ecs run-task \
   --launch-type FARGATE \
   --network-configuration "awsvpcConfiguration={subnets=[${PUBLIC_SUBNETS}],assignPublicIp=ENABLED}" \
