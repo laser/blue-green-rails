@@ -216,7 +216,7 @@ Outputs:
 ```Shell
 aws cloudformation deploy \
   --stack-name demodb \
-  --template-file ./infrastructure/cloudformation/stacks/database.yml
+  --template-file ./database.yml
 ```
 
 After that's created, get the database URL from the stack output:
@@ -394,7 +394,7 @@ Outputs:
 aws cloudformation deploy \
   --capabilities CAPABILITY_IAM \
   --stack-name democluster \
-  --template-file ./infrastructure/cloudformation/stacks/cluster.yml \
+  --template-file ./cluster.yml \
   --parameter-overrides \
     DatabaseUrl=${DATABASE_URL} \
     VpcId=${VPC_ID} \
