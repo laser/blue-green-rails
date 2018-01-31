@@ -1,4 +1,17 @@
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: The VPC which owns the RDS SG
 Resources:
+  RdsWideOpenSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VpcId
+      GroupDescription: Accepting traffic from any place
+      SecurityGroupIngress:
+      - { CidrIp: 0.0.0.0/0, IpProtocol: -1 }
+      Tags:
+      - { Key: Name, Value: demodb-wide-open-sg }
   Database:
     Type: AWS::RDS::DBInstance
     Properties:
@@ -11,6 +24,8 @@ Resources:
       MasterUsername: foouser
       MasterUserPassword: foopassword
       PubliclyAccessible: true
+      VPCSecurityGroups:
+      - !Ref RdsWideOpenSecurityGroup
 Outputs:
   DatabaseUrl:
     Description: A database connection string

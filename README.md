@@ -95,25 +95,21 @@ An image is an ordered collection of root filesystem changes and the correspondi
 docker build . -t demo:latest
 ```
 
+### Run the server
+
+Make sure that a Postgres database named `foodb` exists on your (Mac) host and
+is accessible by a role named `foouser`. Then, launch the server:
+
+```Shell
+docker run -it \
+    -v $(pwd):/opt/app \
+    -p 3333:3000 \
+    -e RAILS_ENV=development \
+    -e DATABASE_URL=postgresql://foouser@docker.for.mac.host.internal/foodb \
+    demo:latest "rails db:migrate && rails server -b 0.0.0.0"
+```
+
 ## Pushing Docker Image to ECR
-
-### Why CloudFormation?
-
-> Why use AWS CloudFormation with Amazon ECS?
->
-> Using CloudFormation to deploy and manage services with ECS has a number of nice benefits over more traditional methods (AWS CLI, scripting, etc.).
->
-> Infrastructure-as-Code
->
-> A template can be used repeatedly to create identical copies of the same stack (or to use as a foundation to start a new stack). Templates are simple YAML- or JSON-formatted text files that can be placed under your normal source control mechanisms, stored in private or public locations such as Amazon S3, and exchanged via email. With CloudFormation, you can see exactly which AWS resources make up a stack. You retain full control and have the ability to modify any of the AWS resources created as part of a stack.
-Self-documenting
->
-> Fed up with outdated documentation on your infrastructure or environments? Still keep manual documentation of IP ranges, security group rules, etc.?
->
-> With CloudFormation, your template becomes your documentation. Want to see exactly what you have deployed? Just look at your template. If you keep it in source control, then you can also look back at exactly which changes were made and by whom.
-Intelligent updating & rollback
->
-> CloudFormation not only handles the initial deployment of your infrastructure and environments, but it can also manage the whole lifecycle, including future updates. During updates, you have fine-grained control and visibility over how changes are applied, using functionality such as change sets, rolling update policies and stack policies.
 
 ### Configure AWS Client
 
@@ -181,56 +177,68 @@ Create a database (15m15.288s):
 ```YAML
 # database.yml
 
-Description: >
-  This stack provisions the RDS instance which will be used by our app.
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: The VPC which owns the RDS SG
 Resources:
+  RdsWideOpenSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VpcId
+      GroupDescription: Accepting traffic from any place
+      SecurityGroupIngress:
+      - { CidrIp: 0.0.0.0/0, IpProtocol: -1 }
+      Tags:
+      - { Key: Name, Value: demodb-wide-open-sg }
   Database:
     Type: AWS::RDS::DBInstance
     Properties:
       AllocatedStorage: 5
-      AutoMinorVersionUpgrade: true
       BackupRetentionPeriod: 0
       DBInstanceClass: db.t2.micro
-      DBName: !Ref AWS::StackName
+      DBName: foodb
       Engine: postgres
       EngineVersion: 9.6.5
-      MasterUsername: rinkydink
-      MasterUserPassword: smurfmagnet
-      MultiAZ: true
+      MasterUsername: foouser
+      MasterUserPassword: foopassword
       PubliclyAccessible: true
+      VPCSecurityGroups:
+      - !Ref RdsWideOpenSecurityGroup
 Outputs:
   DatabaseUrl:
     Description: A database connection string
     Value:
       Fn::Join:
       - ""
-      - - "postgresql://rinkydink:smurfmagnet"
+      - - "postgresql://foouser:foopassword"
         - "@"
         - !GetAtt Database.Endpoint.Address
         - ":"
         - !GetAtt Database.Endpoint.Port
-        - "/"
-        - !Ref AWS::StackName
-```
-
-```Shell
-aws cloudformation deploy \
-  --stack-name demodb \
-  --template-file ./database.yml
-```
-
-After that's created, get the database URL from the stack output:
-
-```Shell
-DATABASE_URL=$(aws cloudformation describe-stacks \
-  --stack-name demodb
-  | jq -r '(.Stacks[0].Outputs[] | select(.OutputKey == "DatabaseUrl")).OutputValue')
+        - "/foodb"
 ```
 
 Get the default VPC id:
 
 ```Shell
 export VPC_ID=$(aws ec2 describe-vpcs --filters "Name=isDefault,Values=true" | jq -r '.Vpcs[].VpcId')
+```
+
+```Shell
+aws cloudformation deploy \
+  --stack-name demodb \
+  --parameter-overrides \
+    VpcId=${VPC_ID} \
+  --template-file ./database.yml
+```
+
+After that's created, get the database URL from the stack output:
+
+```Shell
+export DATABASE_URL=$(aws cloudformation describe-stacks \
+  --stack-name demodb \
+  | jq -r '(.Stacks[0].Outputs[] | select(.OutputKey == "DatabaseUrl")).OutputValue')
 ```
 
 Get the subnets for this VPC:
@@ -405,11 +413,11 @@ aws cloudformation deploy \
 Use stack outputs to get URL of the posts index:
 
 ```Shell
-NLB_DNS_NAME=$($(aws cloudformation describe-stacks \
-  --stack-name wittysubfreshman \
-  | jq -r '(.Stacks[0].Outputs[] | select(.OutputKey == "LoadBalancerUrl")).OutputValue'))
+export NLB_DNS_NAME=$(aws cloudformation describe-stacks \
+  --stack-name democluster \
+  | jq -r '(.Stacks[0].Outputs[] | select(.OutputKey == "LoadBalancerUrl")).OutputValue')
 
-POSTS_URL=http://${NLB_DNS_NAME}/posts
+export POSTS_URL=http://${NLB_DNS_NAME}/posts
 ```
 
 Then, open the app and create a post:
