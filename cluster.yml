@@ -65,10 +65,10 @@ Resources:
       ServiceName: !Sub ${AWS::StackName}-service
       Cluster: !Ref Cluster
       LaunchType: FARGATE
-      DesiredCount: 2
+      DesiredCount: 4
       DeploymentConfiguration:
-        MaximumPercent: 100
-        MinimumHealthyPercent: 50
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
       TaskDefinition: !Ref TaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:

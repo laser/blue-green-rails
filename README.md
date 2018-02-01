@@ -46,7 +46,7 @@ RUN apk add --update \
 
 COPY Gemfile* /opt/bundle/
 WORKDIR /opt/bundle
-RUN bundle update && bundle install
+RUN bundle install
 
 COPY . /opt/app
 WORKDIR /opt/app
