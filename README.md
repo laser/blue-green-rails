@@ -1,18 +1,4 @@
-## What's This Presentation About?
-
-  1. Creating a Docker image containing your Rails application
-  1. Using AWS CloudFormation to create an ECR repository to store your images
-  1. Using AWS CloudFormation to provision an ECS cluster to which you'll deploy your app
-  1. Tweaking ECS settings to affect zero-downtime deploys to cluster
-  1. Executing cluster-safe database migrations
-
 ## Dockerizing Your Application
-
-### What is Docker?
-
-> Docker is a software technology providing operating-system-level virtualization also known as containers, promoted by the company Docker, Inc.[6] Docker provides an additional layer of abstraction and automation of operating-system-level virtualization on Windows and Linux.[7] Docker uses the resource isolation features of the Linux kernel such as cgroups and kernel namespaces, and a union-capable file system such as OverlayFS and others[8] to allow independent "containers" to run within a single Linux instance, avoiding the overhead of starting and maintaining virtual machines (VMs).
-
-### Why use Docker?
 
 ### Generate a Rails App
 
@@ -89,16 +75,23 @@ production:
 
 ### Build the Docker Image
 
-An image is an ordered collection of root filesystem changes and the corresponding execution parameters for use within a container runtime. An image typically contains a union of layered filesystems stacked on top of each other. An image does not have state and it never changes.
-
 ```Shell
 docker build . -t demo:latest
 ```
 
-### Run the server
+### Ensure DB Exists (on Host)
 
 Make sure that a Postgres database named `foodb` exists on your (Mac) host and
-is accessible by a role named `foouser`. Then, launch the server:
+is accessible by a role named `foouser`:
+
+```Shell
+createuser --createdb foouser \
+    && createdb --owner foouser foodb
+```
+
+### Run the server
+
+Launch the server:
 
 ```Shell
 docker run -it \
@@ -150,8 +143,6 @@ export REPOSITORY_URI=$(aws cloudformation describe-stacks \
 
 ### Log in to an Amazon ECR Registry
 
-This command retrieves a token that is valid for a specified registry for 12 hours, and then it prints a docker login command with that authorization token. You can execute the printed command to log in to your registry with Docker. After you have logged in to an Amazon ECR registry with this command, you can use the Docker CLI to push and pull images from that registry until the token expires.
-
 ```Shell
 eval $(aws ecr get-login --no-include-email)
 ```
@@ -172,7 +163,7 @@ docker push ${REPOSITORY_URI}:latest
 
 ## Provisioning an ECS Cluster (default VPC)
 
-Create a database (15m15.288s):
+Create a database (could take 20 minutes):
 
 ```YAML
 # database.yml
