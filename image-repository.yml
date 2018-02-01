@@ -1,7 +1,6 @@
 Description: >
   This stack contains the ECR repository which will hold the images for our
-  built application. We allow any users associated with this account (e.g. the
-  one used by CircleCI) to push/push to/from this repository.
+  built application.
 Resources:
   Repository:
     Type: AWS::ECR::Repository

@@ -1,3 +1,5 @@
+Description: >
+  This stack contains the RDS instance which will hold our application state
 Parameters:
   VpcId:
     Type: AWS::EC2::VPC::Id

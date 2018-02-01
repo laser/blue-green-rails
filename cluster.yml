@@ -62,12 +62,11 @@ Resources:
     Type: AWS::ECS::Service
     DependsOn: LoadBalancerListener
     Properties:
-      ServiceName: !Sub ${AWS::StackName}-service
       Cluster: !Ref Cluster
       LaunchType: FARGATE
-      DesiredCount: 4
+      DesiredCount: 2
       DeploymentConfiguration:
-        MaximumPercent: 200
+        MaximumPercent: 150
         MinimumHealthyPercent: 100
       TaskDefinition: !Ref TaskDefinition
       NetworkConfiguration:
