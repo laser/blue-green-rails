@@ -422,6 +422,8 @@ open ${POSTS_URL}
 
 ## Zero-downtime Deploys
 
+![](https://media.giphy.com/media/3o7WIPXdNP37tcDyKI/giphy.gif)
+
 ### A Zero-downtime Deploy In Action
 
 Make requests to the Rails application in a loop:
