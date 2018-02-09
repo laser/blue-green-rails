@@ -63,6 +63,7 @@ Resources:
     DependsOn: LoadBalancerListener
     Properties:
       Cluster: !Ref Cluster
+      ServiceName: !Sub ${AWS::StackName}-service
       LaunchType: FARGATE
       DesiredCount: 2
       DeploymentConfiguration:
