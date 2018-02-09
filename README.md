@@ -213,7 +213,8 @@ Outputs:
 Get the default VPC id:
 
 ```Shell
-export VPC_ID=$(aws ec2 describe-vpcs --filters "Name=isDefault,Values=true" | jq -r '.Vpcs[].VpcId')
+export VPC_ID=$(aws ec2 describe-vpcs \
+  --filters "Name=isDefault,Values=true" | jq -r '.Vpcs[].VpcId')
 ```
 
 ```Shell
@@ -419,30 +420,6 @@ open ${POSTS_URL}
 
 ## Zero-downtime Deploys
 
-### Visualizing a
-
-### Fiddling with ECS Settings
-
-Our deployment strategy is determined from `DesiredCount`, `MaximumPercent`, and `MinimumHealthyPercent`:
-
-```YAML
-Service:
-  Type: AWS::ECS::Service
-  Properties:
-    DesiredCount: 2
-    DeploymentConfiguration:
-      MaximumPercent: 200
-      MinimumHealthyPercent: 100
-```
-
-During a deploy, we will burst up to a maximum number of running tasks `N`, where:
-
-```Shell
-N = DesiredCount + FLOOR (MaximumPercent / 100 * DesiredCount)
-```
-
-As long as `MinimumHealthyPercent * DesiredCount` is greater than 1, we'll do a zero-downtime deploy.
-
 ### A Zero-downtime Deploy In Action
 
 Make requests to the Rails application in a loop:
@@ -457,11 +434,10 @@ Change the title of the posts index, stage, and commit it:
 sed -i -e "s;<h1>.*<\/h1>;<h1>Posts $(word)<\/h1>;g" websvc/app/views/posts/index.html.erb
 ```
 
-Build a new Docker image, tag it, and push it (0m37.228s):
+Build a new Docker image, tag it, and push it:
 
 ```Shell
-docker build websvc/ -t demo:latest \
-  && export REPOSITORY_URI=$(aws cloudformation describe-stacks --stack-name demorepo | jq -r '(.Stacks[0].Outputs[] | select(.OutputKey == "RepositoryUri")).OutputValue') \
+docker build . -t demo:latest \
   && docker tag demo:latest ${REPOSITORY_URI}:latest \
   && eval $(aws ecr get-login --no-include-email) \
   && docker push ${REPOSITORY_URI}:latest
@@ -478,11 +454,7 @@ aws ecs update-service \
 
 ## Database Migrations
 
-### Problem
-
-We need to ensure that migrations are run only once per deploy.
-
-### Approach 1: Slow Rollout
+### Approach X: Slow Rollout
 
 ```YAML
 Service:
@@ -494,7 +466,7 @@ Service:
       MinimumHealthyPercent: 100
 ```
 
-### Approach 2: ECS RunTask API
+### Approach Y: ECS RunTask API
 
 ```Shell
 export MIGRATION_TASK_ARN=$(aws ecs run-task \
