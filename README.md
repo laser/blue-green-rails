@@ -431,7 +431,7 @@ while true; do echo $(date)-$(curl -s ${POSTS_URL} | grep h1); sleep 1; done
 Change the title of the posts index, stage, and commit it:
 
 ```Shell
-sed -i -e "s;<h1>.*<\/h1>;<h1>Posts $(word)<\/h1>;g" websvc/app/views/posts/index.html.erb
+sed -i -e "s;<h1>.*<\/h1>;<h1>MEOW MEOW HISS<\/h1>;g" websvc/app/views/posts/index.html.erb
 ```
 
 Build a new Docker image, tag it, and push it:
