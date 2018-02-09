@@ -1,3 +1,5 @@
+![](https://s3.amazonaws.com/media-p.slid.es/uploads/407879/images/4567303/Simple_Refarch_1_.png)
+
 ## Dockerizing Your Application
 
 ### Generate a Rails App
